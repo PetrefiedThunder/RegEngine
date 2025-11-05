@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Regulatory Document",
+  "type": "object",
+  "required": [
+    "document_id",
+    "source_url",
+    "source_system",
+    "retrieved_at",
+    "text",
+    "content_sha256"
+  ],
+  "properties": {
+    "document_id": {"type": "string"},
+    "source_url": {"type": "string", "format": "uri"},
+    "source_system": {"type": "string"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "title": {"type": ["string", "null"]},
+    "jurisdiction": {"type": ["string", "null"]},
+    "text": {"type": "string"},
+    "content_sha256": {"type": "string"},
+    "content_type": {"type": ["string", "null"]},
+    "position_map": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["page", "char_start", "char_end"],
+        "properties": {
+          "page": {"type": "integer", "minimum": 1},
+          "char_start": {"type": "integer", "minimum": 0},
+          "char_end": {"type": "integer", "minimum": 0},
+          "source_start": {"type": ["integer", "null"], "minimum": 0},
+          "source_end": {"type": ["integer", "null"], "minimum": 0}
+        }
+      }
+    },
+    "text_extraction": {
+      "type": ["object", "null"],
+      "required": ["engine", "confidence_mean", "confidence_std"],
+      "properties": {
+        "engine": {"type": "string"},
+        "confidence_mean": {"type": "number", "minimum": 0, "maximum": 1},
+        "confidence_std": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}
