@@ -1,0 +1,1 @@
+// Terraform variable definitions placeholder.

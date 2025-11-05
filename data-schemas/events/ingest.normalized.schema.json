@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Ingest Normalized Event",
+  "type": "object",
+  "required": [
+    "event_id",
+    "document_id",
+    "source_system",
+    "source_url",
+    "raw_s3_path",
+    "normalized_s3_path",
+    "timestamp",
+    "content_sha256"
+  ],
+  "properties": {
+    "event_id": {"type": "string"},
+    "document_id": {"type": "string"},
+    "source_system": {"type": "string"},
+    "source_url": {"type": "string", "format": "uri"},
+    "raw_s3_path": {"type": "string"},
+    "normalized_s3_path": {"type": "string"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "content_sha256": {"type": "string"}
+  }
+}
