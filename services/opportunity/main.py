@@ -3,11 +3,10 @@ from __future__ import annotations
 import logging
 
 import structlog
-from fastapi import FastAPI
-
 from app.config import settings
 from app.neo4j_utils import close_driver
 from app.routes import router
+from fastapi import FastAPI
 
 
 def _configure_logging(level: str) -> None:

@@ -4,12 +4,11 @@ import logging
 import threading
 
 import structlog
-from fastapi import FastAPI
-
 from app.config import settings
 from app.consumer import run_consumer, stop_consumer
 from app.neo4j_utils import close_driver, driver
 from app.routes import router
+from fastapi import FastAPI
 
 CONSTRAINTS = [
     "CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE",
