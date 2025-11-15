@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
+from jsonschema import Draft7Validator
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient, NewTopic
 from kafka.errors import TopicAlreadyExistsError
-from jsonschema import Draft7Validator
 from prometheus_client import Counter
 
 from .config import settings
@@ -19,9 +19,7 @@ from .s3_utils import get_bytes
 
 logger = structlog.get_logger("nlp-consumer")
 
-MESSAGES_COUNTER = Counter(
-    "nlp_messages_total", "NLP messages processed", ["status"]
-)
+MESSAGES_COUNTER = Counter("nlp_messages_total", "NLP messages processed", ["status"])
 
 _shutdown_event = threading.Event()
 
@@ -116,7 +114,9 @@ def run_consumer() -> None:
                     )
                     MESSAGES_COUNTER.labels(status="success").inc()
                 except Exception as exc:  # pragma: no cover - requires infra
-                    logger.exception("nlp_processing_error", document_id=doc_id, error=str(exc))
+                    logger.exception(
+                        "nlp_processing_error", document_id=doc_id, error=str(exc)
+                    )
                     MESSAGES_COUNTER.labels(status="error").inc()
     consumer.close()
     producer.close()

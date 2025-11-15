@@ -76,7 +76,9 @@ def _content_hash(normalized_payload: Dict[str, Any]) -> str:
         for key, value in normalized_payload.items()
         if key != "content_sha256"
     }
-    payload_bytes = json.dumps(serializable, sort_keys=True, default=str).encode("utf-8")
+    payload_bytes = json.dumps(serializable, sort_keys=True, default=str).encode(
+        "utf-8"
+    )
     return hashlib.sha256(payload_bytes).hexdigest()
 
 
@@ -109,7 +111,9 @@ def _extract_text(
             ]
             return (
                 candidate_text,
-                TextExtractionMetadata(engine="payload", confidence_mean=1.0, confidence_std=0.0),
+                TextExtractionMetadata(
+                    engine="payload", confidence_mean=1.0, confidence_std=0.0
+                ),
                 position_map,
             )
 
@@ -130,11 +134,19 @@ def _extract_text(
         ]
         return (
             text,
-            TextExtractionMetadata(engine="bytes", confidence_mean=0.5, confidence_std=0.3),
+            TextExtractionMetadata(
+                engine="bytes", confidence_mean=0.5, confidence_std=0.3
+            ),
             position_map,
         )
 
-    return "", TextExtractionMetadata(engine="unknown", confidence_mean=0.0, confidence_std=1.0), []
+    return (
+        "",
+        TextExtractionMetadata(
+            engine="unknown", confidence_mean=0.0, confidence_std=1.0
+        ),
+        [],
+    )
 
 
 def _extract_text_from_payload(payload: dict[str, Any]) -> str:
@@ -150,7 +162,9 @@ def _extract_text_from_payload(payload: dict[str, Any]) -> str:
     return ""
 
 
-def _extract_from_pdf(raw_bytes: bytes) -> Tuple[str, TextExtractionMetadata, List[PositionMapEntry]]:
+def _extract_from_pdf(
+    raw_bytes: bytes,
+) -> Tuple[str, TextExtractionMetadata, List[PositionMapEntry]]:
     text = ""
     position_map: List[PositionMapEntry] = []
     try:
@@ -172,22 +186,40 @@ def _extract_from_pdf(raw_bytes: bytes) -> Tuple[str, TextExtractionMetadata, Li
                 source_end=len(raw_bytes),
             )
         ]
-        return text, TextExtractionMetadata(engine="pdfminer", confidence_mean=0.9, confidence_std=0.05), position_map
+        return (
+            text,
+            TextExtractionMetadata(
+                engine="pdfminer", confidence_mean=0.9, confidence_std=0.05
+            ),
+            position_map,
+        )
 
     # Fallback to Tesseract OCR
     try:
-        from pdf2image import convert_from_bytes
         import pytesseract
+        from pdf2image import convert_from_bytes
     except ImportError:  # pragma: no cover - optional dependency
         logger.warning("tesseract_missing")
-        return "", TextExtractionMetadata(engine="unavailable", confidence_mean=0.0, confidence_std=1.0), []
+        return (
+            "",
+            TextExtractionMetadata(
+                engine="unavailable", confidence_mean=0.0, confidence_std=1.0
+            ),
+            [],
+        )
 
     images = []
     try:
         images = convert_from_bytes(raw_bytes)
     except Exception as exc:  # pragma: no cover - environment dependent
         logger.warning("pdf_rasterization_failed", exc_info=exc)
-        return "", TextExtractionMetadata(engine="tesseract", confidence_mean=0.0, confidence_std=1.0), []
+        return (
+            "",
+            TextExtractionMetadata(
+                engine="tesseract", confidence_mean=0.0, confidence_std=1.0
+            ),
+            [],
+        )
 
     page_texts: List[str] = []
     confidences: List[float] = []
@@ -235,7 +267,7 @@ def _extract_from_pdf(raw_bytes: bytes) -> Tuple[str, TextExtractionMetadata, Li
         TextExtractionMetadata(
             engine="tesseract",
             confidence_mean=round(mean_conf, 4),
-            confidence_std=round(variance ** 0.5, 4),
+            confidence_std=round(variance**0.5, 4),
         ),
         position_map,
     )

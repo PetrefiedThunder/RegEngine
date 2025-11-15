@@ -1,11 +1,9 @@
-import json
 """API routes for the ingestion service."""
 
 from __future__ import annotations
 
 import json
 import logging
-import structlog
 import socket
 import time
 import uuid
@@ -15,6 +13,7 @@ from typing import Iterable
 from urllib.parse import urlparse
 
 import requests
+import structlog
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -86,7 +85,9 @@ def ingest_url(payload: IngestRequest) -> NormalizedEvent:
                 raw_json = response.json()
             except json.JSONDecodeError as exc:  # pragma: no cover - network dependent
                 logger.error("failed_to_parse_json", url=payload.url, error=str(exc))
-                raise HTTPException(status_code=422, detail="Response is not valid JSON") from exc
+                raise HTTPException(
+                    status_code=422, detail="Response is not valid JSON"
+                ) from exc
         if raw_json is not None:
             raw_json["source_system"] = payload.source_system
 
@@ -132,21 +133,30 @@ def ingest_url(payload: IngestRequest) -> NormalizedEvent:
             event.model_dump(mode="json"),
             key=f"{document_id}:{content_hash}",
         )
-        logger.info("normalized_event_emitted", document_id=document_id, content_sha256=content_hash)
+        logger.info(
+            "normalized_event_emitted",
+            document_id=document_id,
+            content_sha256=content_hash,
+        )
         KAFKA_COUNTER.labels(topic=settings.kafka_topic_normalized).inc()
         REQUEST_COUNTER.labels(endpoint=endpoint, status="200").inc()
-        REQUEST_LATENCY.labels(endpoint=endpoint).observe(time.perf_counter() - start_time)
+        REQUEST_LATENCY.labels(endpoint=endpoint).observe(
+            time.perf_counter() - start_time
+        )
         return event
     except HTTPException as exc:
         REQUEST_COUNTER.labels(endpoint=endpoint, status=str(exc.status_code)).inc()
-        REQUEST_LATENCY.labels(endpoint=endpoint).observe(time.perf_counter() - start_time)
+        REQUEST_LATENCY.labels(endpoint=endpoint).observe(
+            time.perf_counter() - start_time
+        )
         raise
     except Exception as exc:  # pragma: no cover - requires infra
         logger.exception("ingest_unexpected_error", error=str(exc))
         REQUEST_COUNTER.labels(endpoint=endpoint, status="500").inc()
-        REQUEST_LATENCY.labels(endpoint=endpoint).observe(time.perf_counter() - start_time)
+        REQUEST_LATENCY.labels(endpoint=endpoint).observe(
+            time.perf_counter() - start_time
+        )
         raise HTTPException(status_code=500, detail="Ingestion failed") from exc
-
 
 
 def _fetch(url: str) -> Response:
@@ -154,7 +164,9 @@ def _fetch(url: str) -> Response:
         response = requests.get(url, timeout=30)
     except requests.RequestException as exc:  # pragma: no cover - network dependent
         logger.error("ingest_fetch_failed", url=url, error=str(exc))
-        raise HTTPException(status_code=502, detail="Failed to fetch source URL") from exc
+        raise HTTPException(
+            status_code=502, detail="Failed to fetch source URL"
+        ) from exc
 
     if response.status_code >= 400:
         logger.warning("ingest_fetch_status", url=url, status=response.status_code)
@@ -177,7 +189,9 @@ def _validate_url(url: str) -> None:
     for addr in addresses:
         ip = ip_address(addr)
         if any(ip in network for network in PROHIBITED_NETWORKS):
-            raise HTTPException(status_code=400, detail="Host resolved to a private network")
+            raise HTTPException(
+                status_code=400, detail="Host resolved to a private network"
+            )
 
 
 def _resolve_host(host: str) -> Iterable[str]:

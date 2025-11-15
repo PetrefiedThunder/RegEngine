@@ -4,11 +4,10 @@ import logging
 import threading
 
 import structlog
-from fastapi import FastAPI
-
 from app.config import settings
 from app.consumer import run_consumer, stop_consumer
 from app.routes import router
+from fastapi import FastAPI
 
 
 def _configure_logging(level: str) -> None:

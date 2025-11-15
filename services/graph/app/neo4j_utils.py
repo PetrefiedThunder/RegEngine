@@ -58,12 +58,16 @@ UNWIND $obligations AS ob
 """
 
 
-def upsert_from_entities(session, doc_id: str, source_url: str | None, entities: List[dict]):
+def upsert_from_entities(
+    session, doc_id: str, source_url: str | None, entities: List[dict]
+):
     jurisdictions = sorted(
         {
             e.get("attrs", {}).get("name")
             for e in entities
-            if e.get("type") == "JURISDICTION" and e.get("attrs") and e["attrs"].get("name")
+            if e.get("type") == "JURISDICTION"
+            and e.get("attrs")
+            and e["attrs"].get("name")
         }
     ) or ["Unknown"]
 
