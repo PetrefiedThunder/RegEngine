@@ -38,6 +38,8 @@ PROHIBITED_NETWORKS = [
     ip_network("169.254.0.0/16"),
     ip_network("::1/128"),
     ip_network("fc00::/7"),
+    ip_network("fe80::/10"),  # IPv6 link-local
+    ip_network("::ffff:0:0/96"),  # IPv4-mapped IPv6
 ]
 MAX_PAYLOAD_BYTES = 25 * 1024 * 1024
 
@@ -161,7 +163,7 @@ def ingest_url(payload: IngestRequest) -> NormalizedEvent:
 
 def _fetch(url: str) -> Response:
     try:
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=30, allow_redirects=False)
     except requests.RequestException as exc:  # pragma: no cover - network dependent
         logger.error("ingest_fetch_failed", url=url, error=str(exc))
         raise HTTPException(

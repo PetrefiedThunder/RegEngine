@@ -42,9 +42,18 @@ app.include_router(router)
 
 
 def _ensure_constraints() -> None:
-    with driver().session() as session:
-        for statement in CONSTRAINTS:
-            session.run(statement)
+    logger = structlog.get_logger("graph-main")
+    try:
+        with driver().session() as session:
+            for statement in CONSTRAINTS:
+                try:
+                    session.run(statement)
+                except Exception as exc:
+                    logger.warning(
+                        "constraint_creation_failed", statement=statement, error=str(exc)
+                    )
+    except Exception as exc:
+        logger.error("neo4j_connection_failed", error=str(exc))
 
 
 @app.on_event("startup")

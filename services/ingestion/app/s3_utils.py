@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from functools import lru_cache
 from typing import Any
 
 import boto3
+import structlog
 from botocore.client import BaseClient
+from botocore.exceptions import ClientError
 
 from .config import get_settings
 
+logger = structlog.get_logger("s3-utils")
 
+
+@lru_cache(maxsize=1)
 def _client() -> BaseClient:
     settings = get_settings()
     session = boto3.session.Session()
@@ -30,16 +36,24 @@ def put_json(bucket: str, key: str, payload: Any) -> str:
     Returns the S3 URI for the stored object.
     """
 
-    body = json.dumps(payload, default=_json_serializer).encode("utf-8")
-    _client().put_object(Bucket=bucket, Key=key, Body=body)
-    return f"s3://{bucket}/{key}"
+    try:
+        body = json.dumps(payload, default=_json_serializer).encode("utf-8")
+        _client().put_object(Bucket=bucket, Key=key, Body=body)
+        return f"s3://{bucket}/{key}"
+    except ClientError as exc:
+        logger.error("s3_put_failed", bucket=bucket, key=key, error=str(exc))
+        raise
 
 
 def put_bytes(bucket: str, key: str, content: bytes) -> str:
     """Upload raw bytes to S3 and return the object URI."""
 
-    _client().put_object(Bucket=bucket, Key=key, Body=content)
-    return f"s3://{bucket}/{key}"
+    try:
+        _client().put_object(Bucket=bucket, Key=key, Body=content)
+        return f"s3://{bucket}/{key}"
+    except ClientError as exc:
+        logger.error("s3_put_failed", bucket=bucket, key=key, error=str(exc))
+        raise
 
 
 def _json_serializer(value: Any) -> Any:

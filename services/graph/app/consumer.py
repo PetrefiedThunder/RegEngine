@@ -48,7 +48,7 @@ def run_consumer() -> None:
         settings.topic_in,
         bootstrap_servers=settings.kafka_bootstrap,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset="earliest",
         group_id="graph-service",
     )
@@ -73,6 +73,7 @@ def run_consumer() -> None:
                             "graph_upsert_ok", doc_id=doc_id, entity_count=len(entities)
                         )
                         MESSAGES_COUNTER.labels(status="success").inc()
+                        consumer.commit()
                     except Exception as exc:  # pragma: no cover - requires infra
                         logger.exception(
                             "graph_upsert_err", doc_id=doc_id, error=str(exc)

@@ -66,7 +66,7 @@ def normalize_document(
 
 
 def _derive_document_id(source_url: str, text: str) -> str:
-    seed = f"{source_url}|{text[:4096]}"
+    seed = f"{source_url}|{text}"
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()
 
 
@@ -122,7 +122,11 @@ def _extract_text(
         return text, meta, position_map
 
     if raw_bytes:
-        text = raw_bytes.decode("utf-8", errors="ignore")
+        try:
+            text = raw_bytes.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            logger.warning("unicode_decode_failed", using_replacement=True)
+            text = raw_bytes.decode("utf-8", errors="replace")
         position_map = [
             PositionMapEntry(
                 page=1,

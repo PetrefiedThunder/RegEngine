@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Dict, List
 
 import regex as re
+import structlog
+
+logger = structlog.get_logger("extractor")
 
 OBLIGATION_PATTERN = re.compile(r"\b(shall|must|required to|has to)\b", re.I)
 THRESHOLD_PATTERN = re.compile(
@@ -49,7 +52,11 @@ def extract_entities(text: str) -> List[Dict]:
     for match in THRESHOLD_PATTERN.finditer(text):
         raw_unit = match.group("unit")
         normalized_unit = UNIT_NORMALIZATION.get(raw_unit.lower(), raw_unit.lower())
-        val = float(match.group("value"))
+        try:
+            val = float(match.group("value"))
+        except ValueError:
+            logger.warning("invalid_threshold_value", value=match.group("value"))
+            continue
         ents.append(
             {
                 "type": "THRESHOLD",

@@ -62,7 +62,7 @@ def run_consumer() -> None:
         settings.topic_in,
         bootstrap_servers=settings.kafka_bootstrap,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset="earliest",
         group_id="nlp-service",
     )
@@ -96,7 +96,15 @@ def run_consumer() -> None:
 
                 try:
                     payload = json.loads(get_bytes(bucket, key))
-                    text = payload.get("text", "")[:2_000_000]
+                    text = payload.get("text", "")
+                    if len(text) > 2_000_000:
+                        logger.warning(
+                            "text_truncated",
+                            document_id=doc_id,
+                            original_length=len(text),
+                            truncated_to=2_000_000,
+                        )
+                        text = text[:2_000_000]
                     source_url = payload.get("source_url")
                     entities = extract_entities(text)
                     out = {
@@ -113,6 +121,7 @@ def run_consumer() -> None:
                         "nlp_extracted", document_id=doc_id, entity_count=len(entities)
                     )
                     MESSAGES_COUNTER.labels(status="success").inc()
+                    consumer.commit()
                 except Exception as exc:  # pragma: no cover - requires infra
                     logger.exception(
                         "nlp_processing_error", document_id=doc_id, error=str(exc)

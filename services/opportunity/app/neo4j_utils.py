@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Optional
 
 from neo4j import GraphDatabase
@@ -7,14 +8,18 @@ from neo4j import GraphDatabase
 from .config import settings
 
 _driver = None
+_driver_lock = threading.Lock()
 
 
 def get_driver():
     global _driver
     if _driver is None:
-        _driver = GraphDatabase.driver(
-            settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password)
-        )
+        with _driver_lock:
+            if _driver is None:  # Double-checked locking
+                _driver = GraphDatabase.driver(
+                    settings.neo4j_uri,
+                    auth=(settings.neo4j_user, settings.neo4j_password),
+                )
     return _driver
 
 

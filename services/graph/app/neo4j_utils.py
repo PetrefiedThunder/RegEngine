@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import threading
 from typing import List
 
 from neo4j import GraphDatabase
@@ -7,14 +9,18 @@ from neo4j import GraphDatabase
 from .config import settings
 
 _driver = None
+_driver_lock = threading.Lock()
 
 
 def driver():
     global _driver
     if _driver is None:
-        _driver = GraphDatabase.driver(
-            settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password)
-        )
+        with _driver_lock:
+            if _driver is None:  # Double-checked locking
+                _driver = GraphDatabase.driver(
+                    settings.neo4j_uri,
+                    auth=(settings.neo4j_user, settings.neo4j_password),
+                )
     return _driver
 
 
@@ -85,11 +91,13 @@ def upsert_from_entities(
         ]
         threshold = contained_thresholds[0] if contained_thresholds else None
         threshold_attrs = threshold.get("attrs", {}) if threshold else {}
+        text = entity.get("text", "")
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
         obligations.append(
             {
                 "pid": pid,
-                "text": entity.get("text", ""),
-                "hash": str(abs(hash(entity.get("text", "")))),
+                "text": text,
+                "hash": text_hash,
                 "start": entity.get("start"),
                 "end": entity.get("end"),
                 "concept": entity.get("attrs", {}).get("concept"),
