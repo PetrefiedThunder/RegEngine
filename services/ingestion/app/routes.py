@@ -1,4 +1,3 @@
-import json
 """API routes for the ingestion service."""
 
 from __future__ import annotations
