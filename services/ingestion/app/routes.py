@@ -16,8 +16,7 @@ import requests
 import structlog
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
-from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Histogram,
-                               generate_latest)
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from requests import Response
 
 from .config import get_settings

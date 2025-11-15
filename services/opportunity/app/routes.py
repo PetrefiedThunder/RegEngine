@@ -7,8 +7,7 @@ from typing import Optional
 import structlog
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Histogram,
-                               generate_latest)
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from .neo4j_utils import CYPHER_GAP, build_arbitrage_query, get_driver
 
