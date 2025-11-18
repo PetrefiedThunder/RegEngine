@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared"))
+from auth import APIKey, require_api_key
 
 from .neo4j_utils import CYPHER_GAP, build_arbitrage_query, get_driver
 
@@ -48,6 +54,7 @@ def arbitrage(
     rel_delta: float = Query(0.2, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
     since: Optional[datetime] = Query(None),
+    api_key: APIKey = Depends(require_api_key),
 ):
     endpoint = "/opportunities/arbitrage"
     start = time.perf_counter()
@@ -104,6 +111,7 @@ def gaps(
     j1: str = Query(...),
     j2: str = Query(...),
     limit: int = Query(50, ge=1, le=200),
+    api_key: APIKey = Depends(require_api_key),
 ):
     endpoint = "/opportunities/gaps"
     start = time.perf_counter()

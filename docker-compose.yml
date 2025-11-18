@@ -1,23 +1,40 @@
 version: '3.8'
 
 x-env-common: &env_common
-  RAW_DATA_BUCKET: reg-engine-raw-data-dev
-  PROCESSED_DATA_BUCKET: reg-engine-processed-data-dev
-  AWS_ACCESS_KEY_ID: test
-  AWS_SECRET_ACCESS_KEY: test
-  AWS_DEFAULT_REGION: us-east-1
-  AWS_ENDPOINT_URL: http://localstack:4566
-  KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-  KAFKA_TOPIC_NORMALIZED: ingest.normalized
-  KAFKA_TOPIC_NLP: nlp.extracted
-  LOG_LEVEL: INFO
-  NEO4J_URI: bolt://neo4j:7687
-  NEO4J_USER: neo4j
-  NEO4J_PASSWORD: letmein
+  RAW_DATA_BUCKET: ${RAW_DATA_BUCKET:-reg-engine-raw-data-dev}
+  PROCESSED_DATA_BUCKET: ${PROCESSED_DATA_BUCKET:-reg-engine-processed-data-dev}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  AWS_ENDPOINT_URL: ${AWS_ENDPOINT_URL:-http://localstack:4566}
+  KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-redpanda:9092}
+  KAFKA_TOPIC_NORMALIZED: ${KAFKA_TOPIC_NORMALIZED:-ingest.normalized}
+  KAFKA_TOPIC_NLP: ${KAFKA_TOPIC_NLP:-nlp.extracted}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+  NEO4J_USER: ${NEO4J_USER:-neo4j}
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-change-me-in-production}
 
 services:
+  admin-api:
+    build:
+      context: .
+      dockerfile: ./services/admin/Dockerfile
+    ports:
+      - "8400:8400"
+    environment:
+      LOG_LEVEL: INFO
+      ADMIN_MASTER_KEY: ${ADMIN_MASTER_KEY:-dev-admin-key-change-in-production}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8400/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
   ingestion-service:
-    build: ./services/ingestion
+    build:
+      context: .
+      dockerfile: ./services/ingestion/dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -25,6 +42,7 @@ services:
     depends_on:
       - localstack
       - redpanda
+      - admin-api
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -32,7 +50,9 @@ services:
       retries: 10
 
   nlp-service:
-    build: ./services/nlp
+    build:
+      context: .
+      dockerfile: ./services/nlp/dockerfile
     environment:
       <<: *env_common
     depends_on:
@@ -47,7 +67,9 @@ services:
       - "8100:8100"
 
   graph-service:
-    build: ./services/graph
+    build:
+      context: .
+      dockerfile: ./services/graph/dockerfile
     environment:
       <<: *env_common
     depends_on:
@@ -62,11 +84,14 @@ services:
       - "8200:8200"
 
   opportunity-api:
-    build: ./services/opportunity
+    build:
+      context: .
+      dockerfile: ./services/opportunity/dockerfile
     environment:
       <<: *env_common
     depends_on:
       - neo4j
+      - admin-api
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8300/health"]
       interval: 10s
@@ -104,7 +129,7 @@ services:
   neo4j:
     image: neo4j:5.24-community
     environment:
-      NEO4J_AUTH: "neo4j/letmein"
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-change-me-in-production}"
       NEO4J_dbms_default__listen__address: "0.0.0.0"
       NEO4J_server_memory_pagecache_size: 512m
       NEO4J_server_memory_heap_initial__size: 512m
