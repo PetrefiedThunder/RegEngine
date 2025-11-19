@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
-from jsonschema import Draft7Validator
+from jsonschema import Draft7Validator, ValidationError
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import TopicAlreadyExistsError
+from kafka.errors import KafkaTimeoutError, TopicAlreadyExistsError
 from prometheus_client import Counter
 
 from .config import settings
@@ -62,7 +62,7 @@ def run_consumer() -> None:
         settings.topic_in,
         bootstrap_servers=settings.kafka_bootstrap,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset="earliest",
         group_id="nlp-service",
     )
@@ -89,6 +89,7 @@ def run_consumer() -> None:
                 if not (doc_id and norm_path):
                     logger.warning("skipping_event_missing_keys", event=evt)
                     MESSAGES_COUNTER.labels(status="skipped").inc()
+                    consumer.commit()
                     continue
 
                 _, _, bucket_key = norm_path.partition("s3://")
@@ -108,11 +109,27 @@ def run_consumer() -> None:
                     }
                     validator.validate(out)
                     producer.send(settings.topic_out, key=doc_id, value=out)
-                    producer.flush(1.0)
+                    remaining = producer.flush(timeout=1.0)
+                    if remaining > 0:
+                        logger.error(
+                            "kafka_flush_incomplete",
+                            remaining=remaining,
+                            document_id=doc_id,
+                        )
+                        MESSAGES_COUNTER.labels(status="error").inc()
+                        continue
                     logger.info(
                         "nlp_extracted", document_id=doc_id, entity_count=len(entities)
                     )
                     MESSAGES_COUNTER.labels(status="success").inc()
+                    consumer.commit()
+                except (ValidationError, KafkaTimeoutError) as exc:
+                    logger.error(
+                        "nlp_validation_or_kafka_error",
+                        document_id=doc_id,
+                        error=str(exc),
+                    )
+                    MESSAGES_COUNTER.labels(status="error").inc()
                 except Exception as exc:  # pragma: no cover - requires infra
                     logger.exception(
                         "nlp_processing_error", document_id=doc_id, error=str(exc)
