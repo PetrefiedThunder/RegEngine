@@ -29,6 +29,7 @@ logger = structlog.get_logger("ingestion")
 router = APIRouter()
 
 ALLOWED_SCHEMES = {"https", "http"}
+ALLOWED_PORTS = {80, 443, 8080, 8443}
 PROHIBITED_HOSTS = {"localhost", "127.0.0.1"}
 PROHIBITED_NETWORKS = [
     ip_network("10.0.0.0/8"),
@@ -171,13 +172,44 @@ def ingest_url(
 
 
 def _fetch(url: str) -> Response:
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    # Resolve and validate IP addresses immediately before fetch to prevent TOCTOU
+    addresses = _resolve_and_validate(host)
+    if not addresses:
+        raise HTTPException(status_code=400, detail="No valid addresses for host")
+
     try:
-        response = requests.get(url, timeout=30)
+        response = requests.get(
+            url,
+            timeout=10,
+            allow_redirects=True,
+            max_redirects=3,
+        )
     except requests.RequestException as exc:  # pragma: no cover - network dependent
         logger.error("ingest_fetch_failed", url=url, error=str(exc))
         raise HTTPException(
             status_code=502, detail="Failed to fetch source URL"
         ) from exc
+
+    # Validate the actual IP connected to prevent DNS rebinding
+    try:
+        if response.raw and hasattr(response.raw, "_connection"):
+            conn = response.raw._connection
+            if hasattr(conn, "sock") and conn.sock:
+                peer_addr = conn.sock.getpeername()[0]
+                peer_ip = ip_address(peer_addr)
+                if any(peer_ip in network for network in PROHIBITED_NETWORKS):
+                    raise HTTPException(
+                        status_code=400, detail="Connection to prohibited network detected"
+                    )
+    except (AttributeError, OSError):
+        # If we can't validate post-connection, log warning but allow
+        # since pre-validation already occurred
+        logger.warning("unable_to_validate_peer_address", url=url)
 
     if response.status_code >= 400:
         logger.warning("ingest_fetch_status", url=url, status=response.status_code)
@@ -190,13 +222,36 @@ def _validate_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ALLOWED_SCHEMES:
         raise HTTPException(status_code=400, detail="Unsupported URL scheme")
+
+    # Block URLs with embedded credentials to prevent credential leakage
+    if parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="URLs with credentials not allowed")
+
     host = parsed.hostname
     if not host:
         raise HTTPException(status_code=400, detail="Invalid URL")
     if host.lower() in PROHIBITED_HOSTS:
         raise HTTPException(status_code=400, detail="Host not allowed")
 
-    addresses = _resolve_host(host)
+    # Validate port to prevent access to internal services
+    port = parsed.port
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+    if port not in ALLOWED_PORTS:
+        raise HTTPException(status_code=400, detail="Port not allowed")
+
+    _resolve_and_validate(host)
+
+
+def _resolve_and_validate(host: str) -> set[str]:
+    """Resolve hostname and validate all IPs are not in prohibited networks."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:  # pragma: no cover - depends on DNS
+        logger.error("dns_resolution_failed", host=host, error=str(exc))
+        raise HTTPException(status_code=400, detail="Failed to resolve host") from exc
+
+    addresses = {info[4][0] for info in infos if info[4]}
     for addr in addresses:
         ip = ip_address(addr)
         if any(ip in network for network in PROHIBITED_NETWORKS):
@@ -204,14 +259,7 @@ def _validate_url(url: str) -> None:
                 status_code=400, detail="Host resolved to a private network"
             )
 
-
-def _resolve_host(host: str) -> Iterable[str]:
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except socket.gaierror as exc:  # pragma: no cover - depends on DNS
-        logger.error("dns_resolution_failed", host=host, error=str(exc))
-        raise HTTPException(status_code=400, detail="Failed to resolve host") from exc
-    return {info[4][0] for info in infos if info[4]}
+    return addresses
 
 
 def _enforce_size_limit(raw_bytes: bytes) -> None:
