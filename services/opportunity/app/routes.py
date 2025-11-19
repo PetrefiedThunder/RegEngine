@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import os
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+# Add common module to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../common"))
+from auth import User, get_current_user, require_scope
 
 from .neo4j_utils import CYPHER_GAP, build_arbitrage_query, get_driver
 
@@ -48,9 +54,16 @@ def arbitrage(
     rel_delta: float = Query(0.2, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
     since: Optional[datetime] = Query(None),
+    current_user: User = Depends(require_scope("opportunities:read")),
 ):
+    """
+    Detect regulatory arbitrage opportunities.
+
+    Requires authentication with 'opportunities:read' scope.
+    """
     endpoint = "/opportunities/arbitrage"
     start = time.perf_counter()
+    logger.info("arbitrage_request", user=current_user.username, j1=j1, j2=j2)
     try:
         since_ms = _to_epoch_millis(since) if since else None
         query = build_arbitrage_query(
@@ -104,9 +117,16 @@ def gaps(
     j1: str = Query(...),
     j2: str = Query(...),
     limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(require_scope("opportunities:read")),
 ):
+    """
+    Find compliance gaps between jurisdictions.
+
+    Requires authentication with 'opportunities:read' scope.
+    """
     endpoint = "/opportunities/gaps"
     start = time.perf_counter()
+    logger.info("gaps_request", user=current_user.username, j1=j1, j2=j2)
     try:
         with get_driver().session() as session:
             result = session.run(

@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint for the ingestion service."""
+"""FastAPI application entrypoint for the diff service."""
 
 from __future__ import annotations
 
@@ -37,13 +37,13 @@ settings = get_settings()
 _configure_logging(settings.log_level)
 
 app = FastAPI(
-    title="RegEngine Ingestion Service",
+    title="RegEngine Diff Service",
     version="2.0.0",
-    description="Secure document ingestion service with JWT authentication and rate limiting",
+    description="Regulatory document comparison and change detection service",
 )
 
-# Add rate limiting middleware (100 requests per minute)
-rate_limiter = get_rate_limiter(limit=100, window=60)
+# Add rate limiting middleware (50 requests per minute for compute-intensive service)
+rate_limiter = get_rate_limiter(limit=50, window=60)
 app.middleware("http")(rate_limiter.rate_limit_middleware)
 
 app.include_router(auth_router)

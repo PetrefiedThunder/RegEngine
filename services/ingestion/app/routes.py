@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import socket
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
@@ -14,10 +16,14 @@ from urllib.parse import urlparse
 
 import requests
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from requests import Response
+
+# Add common module to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../common"))
+from auth import User, get_current_user, require_scope
 
 from .config import get_settings
 from .kafka_utils import send
@@ -65,13 +71,22 @@ def metrics() -> PlainTextResponse:
 
 
 @router.post("/ingest/url", response_model=NormalizedEvent)
-def ingest_url(payload: IngestRequest) -> NormalizedEvent:
-    """Fetch content from the given URL, normalize it, and emit an event."""
+def ingest_url(
+    payload: IngestRequest,
+    current_user: User = Depends(require_scope("ingest:write")),
+) -> NormalizedEvent:
+    """
+    Fetch content from the given URL, normalize it, and emit an event.
+
+    Requires authentication with 'ingest:write' scope.
+    """
 
     start_time = time.perf_counter()
     endpoint = "/ingest/url"
     _validate_url(payload.url)
     settings = get_settings()
+
+    logger.info("ingest_request", user=current_user.username, url=payload.url)
 
     try:
         response = _fetch(payload.url)
