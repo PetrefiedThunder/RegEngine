@@ -1,0 +1,69 @@
+# RegEngine Terraform Variables Example
+# Copy this file to terraform.tfvars and customize for your environment
+
+#########################
+# REQUIRED VARIABLES
+#########################
+
+# Environment: demo, sandbox, or production
+environment = "demo"
+
+# AWS region
+aws_region = "us-east-1"
+
+# ECR registry URL (create ECR repositories first)
+# Format: {account_id}.dkr.ecr.{region}.amazonaws.com
+ecr_registry = "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+
+#########################
+# OPTIONAL OVERRIDES
+#########################
+
+# Networking
+# vpc_cidr = "10.0.0.0/16"
+# availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+# Cost optimization for non-prod
+# single_nat_gateway = true  # Use one NAT gateway instead of one per AZ
+# use_spot_instances = true  # Use EC2 Spot for non-critical workloads
+
+# Database sizing
+# neo4j_instance_type = "m6g.xlarge"  # Upgrade for production
+# neo4j_volume_size = 500  # GB
+
+# Service scaling (production example)
+# ingestion_desired_count = 4
+# nlp_desired_count = 4
+# graph_desired_count = 3
+# opportunity_desired_count = 3
+
+# Monitoring
+# log_retention_days = 90  # Longer retention for production
+# enable_prometheus = true
+# enable_grafana = true
+
+# Security (production)
+# enable_waf = true
+# enable_shield = false  # Expensive, only for high-traffic production
+# enable_secrets_rotation = true
+# secrets_rotation_days = 90
+
+# Feature flags
+# enable_design_partner_sandboxes = true
+# enable_demo_data_loading = true  # Auto-load demo data
+
+#########################
+# TAGS
+#########################
+
+tags = {
+  Project    = "RegEngine"
+  ManagedBy  = "Terraform"
+  CostCenter = "Engineering"
+  Owner      = "devops@regengine.ai"
+}
+
+additional_tags = {
+  Environment = "demo"
+  Purpose     = "evaluation"
+}

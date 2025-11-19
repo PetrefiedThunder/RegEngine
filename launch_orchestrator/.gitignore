@@ -1,0 +1,7 @@
+# Orchestrator-generated files
+generated/
+orchestration_result.json
+orchestrator.log
+*.pyc
+__pycache__/
+.env

@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import socket
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
 from ipaddress import ip_address, ip_network
+from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlparse
 
@@ -18,6 +20,10 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from requests import Response
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared"))
+from auth import APIKey, require_api_key
 
 from .config import get_settings
 from .kafka_utils import send
