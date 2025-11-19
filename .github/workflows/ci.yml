@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: ["services/ingestion", "services/nlp", "services/graph", "services/opportunity"]
+        service: ["services/ingestion", "services/nlp", "services/graph", "services/opportunity", "services/diff"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

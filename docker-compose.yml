@@ -14,6 +14,9 @@ x-env-common: &env_common
   NEO4J_URI: bolt://neo4j:7687
   NEO4J_USER: neo4j
   NEO4J_PASSWORD: letmein
+  REDIS_URL: redis://redis:6379/0
+  JWT_SECRET_KEY: dev-secret-key-change-in-production
+  ACCESS_TOKEN_EXPIRE_MINUTES: 30
 
 services:
   ingestion-service:
@@ -25,6 +28,7 @@ services:
     depends_on:
       - localstack
       - redpanda
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -67,6 +71,7 @@ services:
       <<: *env_common
     depends_on:
       - neo4j
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8300/health"]
       interval: 10s
@@ -74,6 +79,33 @@ services:
       retries: 10
     ports:
       - "8300:8300"
+
+  diff-service:
+    build: ./services/diff
+    environment:
+      <<: *env_common
+    depends_on:
+      - localstack
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8400/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "8400:8400"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   localstack:
     image: localstack/localstack:3
@@ -117,3 +149,4 @@ services:
 
 volumes:
   neo4j_data:
+  redis_data:
