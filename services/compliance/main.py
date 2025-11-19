@@ -16,6 +16,7 @@ from checklist_engine import (
     ChecklistResult,
     ValidationStatus,
 )
+from fsma_engine import FSMA204ComplianceEngine
 
 # Import shared authentication
 import sys
@@ -31,6 +32,7 @@ app = FastAPI(
 
 # Initialize checklist engine
 engine = ComplianceChecklistEngine(plugin_directory="/home/user/RegEngine/industry_plugins")
+fsma_engine = FSMA204ComplianceEngine()
 
 
 # ============================================================================
@@ -77,6 +79,70 @@ class ValidationResponse(BaseModel):
     pass_rate: float = Field(..., description="Pass rate as decimal (0.0-1.0)")
     items: List[ValidationItemResponse]
     next_steps: List[str]
+
+
+class TraceabilityPlanModel(BaseModel):
+    plan_document: Optional[str] = None
+    plan_owner: Optional[str] = None
+    update_frequency_months: Optional[int] = None
+    training_program: Optional[str] = None
+    product_scope: List[str] = Field(default_factory=list)
+    digital_workflow: Optional[bool] = None
+    kpi_dashboard: Optional[bool] = None
+
+
+class KDECaptureModel(BaseModel):
+    receiving: List[str] = Field(default_factory=list)
+    transformation: List[str] = Field(default_factory=list)
+    shipping: List[str] = Field(default_factory=list)
+    cooling: List[str] = Field(default_factory=list)
+
+
+class RecordkeepingModel(BaseModel):
+    retention_years: Optional[int] = None
+    retrieval_time_hours: Optional[int] = None
+    digital_system: bool = False
+    storage_format: Optional[str] = None
+    system_of_record: Optional[str] = None
+
+
+class TechnologyModel(BaseModel):
+    capabilities: List[str] = Field(default_factory=list)
+    integration_notes: Optional[str] = None
+
+
+class FSMAAssessmentRequest(BaseModel):
+    """FSMA 204 facility profile input"""
+
+    facility_name: str = Field(..., description="Facility under evaluation")
+    facility_type: Optional[str] = Field(None, description="e.g., RTE salads, seafood processor")
+    products: List[str] = Field(default_factory=list)
+    traceability_plan: TraceabilityPlanModel = Field(default_factory=TraceabilityPlanModel)
+    kde_capture: KDECaptureModel = Field(default_factory=KDECaptureModel)
+    critical_tracking_events: List[str] = Field(default_factory=list)
+    recordkeeping: RecordkeepingModel = Field(default_factory=RecordkeepingModel)
+    technology: TechnologyModel = Field(default_factory=TechnologyModel)
+
+
+class DimensionScoreModel(BaseModel):
+    id: str
+    name: str
+    weight: float
+    score: float
+    status: str
+    rationale: str
+    gaps: List[str]
+
+
+class FSMAAssessmentResponse(BaseModel):
+    rule_name: str
+    regulator: str
+    effective_date: Optional[str]
+    facility_name: str
+    overall_score: float
+    risk_level: str
+    dimension_scores: List[DimensionScoreModel]
+    remediation_actions: List[str]
 
 
 # ============================================================================
@@ -227,6 +293,30 @@ def list_industries(api_key: APIKey = Depends(require_api_key)):
         ],
         "total": len(industries),
     }
+
+
+@app.post("/fsma-204/assess", response_model=FSMAAssessmentResponse)
+def assess_fsma_readiness(
+    request: FSMAAssessmentRequest,
+    api_key: APIKey = Depends(require_api_key),
+):
+    """Run a FSMA 204 readiness assessment"""
+
+    profile = request.dict()
+    report = fsma_engine.evaluate(profile)
+    payload = report.to_dict()
+    metadata = payload.get("rule_metadata", {})
+
+    return FSMAAssessmentResponse(
+        rule_name=metadata.get("rule_name", "FSMA 204"),
+        regulator=metadata.get("regulator", "FDA"),
+        effective_date=metadata.get("effective_date"),
+        facility_name=payload.get("facility_name", request.facility_name),
+        overall_score=payload.get("overall_score", 0.0),
+        risk_level=payload.get("risk_level", "UNKNOWN"),
+        dimension_scores=[DimensionScoreModel(**item) for item in payload.get("dimension_scores", [])],
+        remediation_actions=payload.get("remediation_actions", []),
+    )
 
 
 # ============================================================================
