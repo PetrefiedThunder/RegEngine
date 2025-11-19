@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 import requests
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from requests import Response
@@ -64,10 +64,21 @@ def metrics() -> PlainTextResponse:
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+def _verify_api_key(x_api_key: str | None = Header(None)) -> None:
+    """Verify API key if configured."""
+    settings = get_settings()
+    if settings.api_key is not None:
+        if not x_api_key or x_api_key != settings.api_key:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
 @router.post("/ingest/url", response_model=NormalizedEvent)
-def ingest_url(payload: IngestRequest) -> NormalizedEvent:
+def ingest_url(
+    payload: IngestRequest, x_api_key: str | None = Header(None)
+) -> NormalizedEvent:
     """Fetch content from the given URL, normalize it, and emit an event."""
 
+    _verify_api_key(x_api_key)
     start_time = time.perf_counter()
     endpoint = "/ingest/url"
     _validate_url(payload.url)
