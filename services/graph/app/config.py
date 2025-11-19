@@ -1,15 +1,29 @@
-import os
+from functools import lru_cache
 
-from pydantic import BaseModel
-
-
-class Settings(BaseModel):
-    kafka_bootstrap: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")
-    topic_in: str = os.getenv("KAFKA_TOPIC_NLP", "nlp.extracted")
-    neo4j_uri: str = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-    neo4j_user: str = os.getenv("NEO4J_USER", "neo4j")
-    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "letmein")
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-settings = Settings()
+class Settings(BaseSettings):
+    """Environment-driven configuration values."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    kafka_bootstrap: str = Field(
+        default="redpanda:9092", alias="KAFKA_BOOTSTRAP_SERVERS"
+    )
+    topic_in: str = Field(default="nlp.extracted", alias="KAFKA_TOPIC_NLP")
+    neo4j_uri: str = Field(default="bolt://neo4j:7687", alias="NEO4J_URI")
+    neo4j_user: str = Field(default="neo4j", alias="NEO4J_USER")
+    neo4j_password: str = Field(..., alias="NEO4J_PASSWORD")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return cached settings instance."""
+
+    return Settings()
+
+
+settings = get_settings()
