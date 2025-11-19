@@ -7,9 +7,14 @@ from datetime import datetime
 from typing import Any
 
 import boto3
+import structlog
 from botocore.client import BaseClient
+from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import HTTPException
 
 from .config import get_settings
+
+logger = structlog.get_logger("s3_utils")
 
 
 def _client() -> BaseClient:
@@ -30,16 +35,24 @@ def put_json(bucket: str, key: str, payload: Any) -> str:
     Returns the S3 URI for the stored object.
     """
 
-    body = json.dumps(payload, default=_json_serializer).encode("utf-8")
-    _client().put_object(Bucket=bucket, Key=key, Body=body)
-    return f"s3://{bucket}/{key}"
+    try:
+        body = json.dumps(payload, default=_json_serializer).encode("utf-8")
+        _client().put_object(Bucket=bucket, Key=key, Body=body)
+        return f"s3://{bucket}/{key}"
+    except (ClientError, BotoCoreError) as exc:
+        logger.error("s3_put_failed", bucket=bucket, key=key, error=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to store data in S3") from exc
 
 
 def put_bytes(bucket: str, key: str, content: bytes) -> str:
     """Upload raw bytes to S3 and return the object URI."""
 
-    _client().put_object(Bucket=bucket, Key=key, Body=content)
-    return f"s3://{bucket}/{key}"
+    try:
+        _client().put_object(Bucket=bucket, Key=key, Body=content)
+        return f"s3://{bucket}/{key}"
+    except (ClientError, BotoCoreError) as exc:
+        logger.error("s3_put_failed", bucket=bucket, key=key, error=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to store data in S3") from exc
 
 
 def _json_serializer(value: Any) -> Any:

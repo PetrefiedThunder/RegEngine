@@ -6,9 +6,14 @@ import json
 from functools import lru_cache
 from typing import Optional
 
+import structlog
+from fastapi import HTTPException
 from kafka import KafkaProducer
+from kafka.errors import KafkaTimeoutError
 
 from .config import get_settings
+
+logger = structlog.get_logger("kafka_utils")
 
 
 @lru_cache(maxsize=1)
@@ -38,5 +43,16 @@ def send(topic: str, payload: dict, key: Optional[str] = None) -> None:
     """Send a message to Kafka."""
 
     producer = get_producer()
-    producer.send(topic, key=key, value=payload)
-    producer.flush(1.0)
+    future = producer.send(topic, key=key, value=payload)
+    try:
+        remaining = producer.flush(timeout=1.0)
+        if remaining > 0:
+            logger.error("kafka_flush_incomplete", remaining=remaining, topic=topic)
+            raise HTTPException(
+                status_code=500, detail="Failed to flush message to Kafka"
+            )
+    except KafkaTimeoutError as exc:
+        logger.error("kafka_flush_timeout", topic=topic, error=str(exc))
+        raise HTTPException(
+            status_code=500, detail="Kafka flush timeout"
+        ) from exc
