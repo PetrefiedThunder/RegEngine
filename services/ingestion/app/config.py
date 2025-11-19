@@ -28,6 +28,7 @@ class Settings(BaseSettings):
         default="ingest.normalized", alias="KAFKA_TOPIC_NORMALIZED"
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    api_key: str | None = Field(default=None, alias="API_KEY")
 
 
 @lru_cache(maxsize=1)

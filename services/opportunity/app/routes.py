@@ -5,14 +5,23 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
+from .config import get_settings
 from .neo4j_utils import CYPHER_GAP, build_arbitrage_query, get_driver
 
 router = APIRouter()
 logger = structlog.get_logger("opportunity-api")
+
+
+def _verify_api_key(x_api_key: str | None = Header(None)) -> None:
+    """Verify API key if configured."""
+    settings = get_settings()
+    if settings.api_key is not None:
+        if not x_api_key or x_api_key != settings.api_key:
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 REQUEST_COUNTER = Counter(
     "opportunity_requests_total", "Opportunity API requests", ["endpoint", "status"]
@@ -48,7 +57,9 @@ def arbitrage(
     rel_delta: float = Query(0.2, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
     since: Optional[datetime] = Query(None),
+    x_api_key: str | None = Header(None),
 ):
+    _verify_api_key(x_api_key)
     endpoint = "/opportunities/arbitrage"
     start = time.perf_counter()
     try:
@@ -104,7 +115,9 @@ def gaps(
     j1: str = Query(...),
     j2: str = Query(...),
     limit: int = Query(50, ge=1, le=200),
+    x_api_key: str | None = Header(None),
 ):
+    _verify_api_key(x_api_key)
     endpoint = "/opportunities/gaps"
     start = time.perf_counter()
     try:

@@ -48,34 +48,38 @@ def run_consumer() -> None:
         settings.topic_in,
         bootstrap_servers=settings.kafka_bootstrap,
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        enable_auto_commit=True,
+        enable_auto_commit=False,
         auto_offset_reset="earliest",
         group_id="graph-service",
     )
-    with driver().session() as session:
-        while not _shutdown_event.is_set():
-            message = consumer.poll(timeout_ms=500)
-            if not message:
-                continue
-            for records in message.values():
-                for record in records:
-                    evt = record.value
-                    doc_id = evt.get("document_id")
-                    entities = evt.get("entities", [])
-                    source_url = evt.get("source_url")
-                    if not doc_id:
-                        logger.warning("missing_document_id", event=evt)
-                        MESSAGES_COUNTER.labels(status="skipped").inc()
-                        continue
-                    try:
-                        upsert_from_entities(session, doc_id, source_url, entities)
-                        logger.info(
-                            "graph_upsert_ok", doc_id=doc_id, entity_count=len(entities)
-                        )
-                        MESSAGES_COUNTER.labels(status="success").inc()
-                    except Exception as exc:  # pragma: no cover - requires infra
-                        logger.exception(
-                            "graph_upsert_err", doc_id=doc_id, error=str(exc)
-                        )
-                        MESSAGES_COUNTER.labels(status="error").inc()
+    while not _shutdown_event.is_set():
+        message = consumer.poll(timeout_ms=500)
+        if not message:
+            continue
+        for records in message.values():
+            for record in records:
+                evt = record.value
+                doc_id = evt.get("document_id")
+                entities = evt.get("entities", [])
+                source_url = evt.get("source_url")
+                if not doc_id:
+                    logger.warning("missing_document_id", event=evt)
+                    MESSAGES_COUNTER.labels(status="skipped").inc()
+                    consumer.commit()
+                    continue
+                try:
+                    with driver().session() as session:
+                        with session.begin_transaction() as tx:
+                            upsert_from_entities(session, doc_id, source_url, entities)
+                            tx.commit()
+                    logger.info(
+                        "graph_upsert_ok", doc_id=doc_id, entity_count=len(entities)
+                    )
+                    MESSAGES_COUNTER.labels(status="success").inc()
+                    consumer.commit()
+                except Exception as exc:  # pragma: no cover - requires infra
+                    logger.exception(
+                        "graph_upsert_err", doc_id=doc_id, error=str(exc)
+                    )
+                    MESSAGES_COUNTER.labels(status="error").inc()
     consumer.close()

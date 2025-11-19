@@ -1,18 +1,32 @@
-import os
+from functools import lru_cache
 
-from pydantic import BaseModel
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseModel):
-    aws_endpoint_url: str | None = os.getenv("AWS_ENDPOINT_URL")
-    raw_bucket: str = os.getenv("RAW_DATA_BUCKET", "reg-engine-raw-data-dev")
-    processed_bucket: str = os.getenv(
-        "PROCESSED_DATA_BUCKET", "reg-engine-processed-data-dev"
+class Settings(BaseSettings):
+    """Environment-driven configuration values."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    aws_endpoint_url: str | None = Field(default=None, alias="AWS_ENDPOINT_URL")
+    raw_bucket: str = Field(default="reg-engine-raw-data-dev", alias="RAW_DATA_BUCKET")
+    processed_bucket: str = Field(
+        default="reg-engine-processed-data-dev", alias="PROCESSED_DATA_BUCKET"
     )
-    kafka_bootstrap: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092")
-    topic_in: str = os.getenv("KAFKA_TOPIC_NORMALIZED", "ingest.normalized")
-    topic_out: str = os.getenv("KAFKA_TOPIC_NLP", "nlp.extracted")
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
+    kafka_bootstrap: str = Field(
+        default="redpanda:9092", alias="KAFKA_BOOTSTRAP_SERVERS"
+    )
+    topic_in: str = Field(default="ingest.normalized", alias="KAFKA_TOPIC_NORMALIZED")
+    topic_out: str = Field(default="nlp.extracted", alias="KAFKA_TOPIC_NLP")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
 
-settings = Settings()
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return cached settings instance."""
+
+    return Settings()
+
+
+settings = get_settings()
